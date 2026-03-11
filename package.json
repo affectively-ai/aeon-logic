@@ -1,0 +1,39 @@
+{
+  "name": "@affectively/aeon-logic",
+  "version": "0.1.0",
+  "description": "Fork/Race/Fold temporal logic engine and model checker",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "bun run typecheck && bun run test"
+  },
+  "keywords": [
+    "tla",
+    "temporal-logic",
+    "model-checker",
+    "fork-race-fold",
+    "formal-methods"
+  ],
+  "author": "Affectively AI",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
+}
