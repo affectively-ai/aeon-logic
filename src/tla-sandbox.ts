@@ -105,11 +105,8 @@ export function runTlaSandbox(sourceText: string): TlaSandboxResult {
   }
 
   const logs: string[] = [];
-  const report: TlaSandboxReport = {
-    engine: 'aeon-logic',
-    mode: 'tla-sandbox',
-    runtime: 'wasm-js',
-  };
+  let moduleReport: TlaSandboxModuleReport | undefined;
+  let configReport: TlaSandboxConfigReport | undefined;
 
   if (tlaSource) {
     logs.push('Parsing TLA module...');
@@ -117,7 +114,7 @@ export function runTlaSandbox(sourceText: string): TlaSandboxResult {
     const canonicalModule = renderTlaModule(parsedModule);
     const reparsedModule = parseTlaModule(canonicalModule);
 
-    report.module = {
+    moduleReport = {
       name: parsedModule.moduleName,
       extends: parsedModule.extends ?? [],
       bodyLineCount: parsedModule.body.length,
@@ -132,7 +129,7 @@ export function runTlaSandbox(sourceText: string): TlaSandboxResult {
     const canonicalConfig = serializeTlcConfig(parsedConfig);
     const reparsedConfig = parseTlcConfig(canonicalConfig);
 
-    report.config = {
+    configReport = {
       constants: parsedConfig.constants.length,
       invariants: parsedConfig.invariants.length,
       properties: parsedConfig.properties.length,
@@ -142,6 +139,14 @@ export function runTlaSandbox(sourceText: string): TlaSandboxResult {
       canonicalSource: canonicalConfig,
     };
   }
+
+  const report: TlaSandboxReport = {
+    engine: 'aeon-logic',
+    mode: 'tla-sandbox',
+    runtime: 'wasm-js',
+    ...(moduleReport ? { module: moduleReport } : {}),
+    ...(configReport ? { config: configReport } : {}),
+  };
 
   return {
     report,
