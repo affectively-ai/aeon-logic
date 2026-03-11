@@ -5,20 +5,41 @@ export {
 } from './tlc-cfg.js';
 export { parseTlaModule, renderTlaModule } from './tla-module.js';
 export {
+  partitionTlaSandboxArtifacts,
+  runTlaSandbox,
+} from './tla-sandbox.js';
+export {
   checkerTraceToTlcJson,
   checkerTraceToTlcText,
   parseTlcTextTrace,
   toTlaValue,
 } from './tlc-trace.js';
 export { renderTlcArtifactPair } from './tlc-artifacts.js';
+export { LogicChainSuperposition } from './superposition.js';
+export { ComplexLogicChainSuperposition } from './complex-superposition.js';
+export { renderSuperpositionArtifactPair } from './superposition-artifacts.js';
+export { LogicChainFlowBridge } from './flow-bridge.js';
+export {
+  collectTopologyEvents,
+  createTopologySamplerBridge,
+} from './topology-bridge.js';
 
 export type {
+  CheckerSuperpositionBranchContext,
+  CheckerSuperpositionOptions,
   CheckerOptions,
   CheckerResult,
   CheckerStats,
+  CheckerTopologyEvent,
+  CheckerTopologyEventFold,
+  CheckerTopologyEventFork,
+  CheckerTopologyEventRace,
+  CheckerTopologyEventVent,
   NamedPredicate,
+  QuorumEventuallyProperty,
   TemporalAction,
   TemporalModel,
+  TraceQuantumMeta,
   TraceStep,
   Violation,
   WeakFairnessRule,
@@ -29,5 +50,41 @@ export type {
   TlcExtraSection,
 } from './tlc-cfg.js';
 export type { TlaModule } from './tla-module.js';
+export type {
+  TlaSandboxArtifacts,
+  TlaSandboxConfigReport,
+  TlaSandboxModuleReport,
+  TlaSandboxReport,
+  TlaSandboxResult,
+} from './tla-sandbox.js';
 export type { TlcArtifactPair } from './tlc-artifacts.js';
-export type { TlcJsonTrace, TlcTraceState } from './tlc-trace.js';
+export type {
+  TlcJsonTrace,
+  TlcTraceRenderOptions,
+  TlcTraceState,
+} from './tlc-trace.js';
+export type {
+  ComplexChainSuperpositionOptions,
+  ComplexLogicChain,
+  ComplexLogicChainCandidate,
+  ComplexNumber,
+  ComplexQuorumMeasurementResult,
+  ComplexWeightedLogicChain,
+} from './complex-superposition.js';
+export type {
+  FlowForkRaceFoldLike,
+} from './flow-bridge.js';
+export type {
+  SuperpositionArtifactOptions,
+} from './superposition-artifacts.js';
+export type {
+  TopologySamplerLike,
+} from './topology-bridge.js';
+export type {
+  ChainPhase,
+  ChainSuperpositionOptions,
+  LogicChain,
+  LogicChainCandidate,
+  QuorumMeasurementResult,
+  WeightedLogicChain,
+} from './superposition.js';

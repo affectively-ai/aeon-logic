@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ForkRaceFoldModelChecker,
+  collectTopologyEvents,
   type NamedPredicate,
   type TemporalModel,
 } from '../src/index.js';
@@ -181,5 +182,99 @@ describe('ForkRaceFoldModelChecker', () => {
       ),
     );
     expect(parallelResult.stats).toEqual(serialResult.stats);
+  });
+
+  it('supports superposition frontier cancellation with topology events', async () => {
+    interface BranchState {
+      readonly step: 'root' | 'target';
+    }
+
+    const checker = new ForkRaceFoldModelChecker<BranchState>();
+    const topology = collectTopologyEvents();
+
+    const model: TemporalModel<BranchState> = {
+      initialStates: [{ step: 'root' }],
+      fingerprint: (state) => state.step,
+      actions: [
+        {
+          name: 'Split',
+          enabled: (state) => state.step === 'root',
+          successors: () => [{ step: 'target' }, { step: 'target' }],
+        },
+      ],
+    };
+
+    const result = await checker.check(model, {
+      eventual: [{ name: 'ReachTarget', test: (state) => state.step === 'target' }],
+      superposition: {
+        enabled: true,
+        branchPhase: (context) => (context.successorIndex === 0 ? 1 : -1),
+        onTopologyEvent: topology.sink,
+      },
+      maxDepth: 4,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.violations[0]?.kind).toBe('eventual');
+    expect(topology.events.some((event) => event.type === 'fork')).toBe(true);
+    expect(topology.events.some((event) => event.type === 'vent')).toBe(true);
+    expect(topology.events.some((event) => event.type === 'fold')).toBe(true);
+  });
+
+  it('supports quorum-based eventual properties in superposition mode', async () => {
+    interface VoteState {
+      readonly branch: 'seed' | 'yes' | 'no';
+    }
+
+    const checker = new ForkRaceFoldModelChecker<VoteState>();
+    const model: TemporalModel<VoteState> = {
+      initialStates: [{ branch: 'seed' }],
+      fingerprint: (state) => state.branch,
+      actions: [
+        {
+          name: 'Poll',
+          successors: () => [
+            { branch: 'yes' },
+            { branch: 'yes' },
+            { branch: 'no' },
+          ],
+        },
+      ],
+    };
+
+    const result = await checker.check(model, {
+      eventualQuorum: [
+        {
+          name: 'YesQuorum',
+          keyOfState: (state) => state.branch,
+          threshold: 0.66,
+          isGoalKey: (key) => key === 'yes',
+        },
+      ],
+      superposition: { enabled: true },
+      maxDepth: 3,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.violations).toHaveLength(0);
+  });
+
+  it('includes quantum metadata in violation traces', async () => {
+    const checker = new ForkRaceFoldModelChecker<CounterState>();
+    const model: TemporalModel<CounterState> = {
+      initialStates: [{ value: -1 }],
+      fingerprint: counterFingerprint,
+      actions: [],
+    };
+
+    const result = await checker.check(model, {
+      invariants: [{ name: 'NonNegative', test: (state) => state.value >= 0 }],
+      superposition: { enabled: true },
+    });
+
+    const firstStep = result.violations[0]?.trace[0];
+    expect(firstStep?.quantum).toBeDefined();
+    expect(firstStep?.quantum?.amplitude).toBeCloseTo(1, 12);
+    expect(firstStep?.quantum?.probability).toBeCloseTo(1, 12);
   });
 });

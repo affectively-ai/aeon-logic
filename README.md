@@ -10,7 +10,17 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
   - weak fairness filtering (`WF`) for liveness counterexamples
 - TLC config (`.cfg`) parsing and serialization
 - TLA module (`.tla`) parsing and rendering
+- WASM-friendly TLA sandbox runner (`runTlaSandbox`) with module/config partitioning
 - Checker trace adapters to TLC-like text and JSON representations
+- Logic-chain superposition primitives:
+  - superposition/fork expansion
+  - branch interference (constructive/destructive)
+  - measurement policies (argmax, quorum, merge)
+- Advanced composition helpers:
+  - complex-amplitude superposition chains
+  - checker topology event bridge for `TopologySampler` sinks
+  - chain-to-stream bridge for Aeon Flow fork/race/fold transports
+  - generated superposition-focused `.tla/.cfg` artifact pairs
 
 ## Install
 
@@ -30,7 +40,9 @@ bun run build
 ```ts
 import {
   ForkRaceFoldModelChecker,
+  LogicChainSuperposition,
   parseTlcConfig,
+  runTlaSandbox,
   renderTlaModule,
   serializeTlcConfig,
 } from '@affectively/aeon-logic';
@@ -62,6 +74,17 @@ const tlaText = renderTlaModule({
   extends: ['Naturals'],
   body: ['Spec == TRUE'],
 });
+
+const superposed = LogicChainSuperposition.seed({ score: 0 })
+  .fork(() => [
+    { state: { score: 1 }, step: 'A', relativeAmplitude: 2 },
+    { state: { score: -1 }, step: 'B', relativeAmplitude: 1 },
+  ])
+  .interfere();
+
+const winner = superposed.measureArgmax();
+
+const tlaSandboxReport = runTlaSandbox(`${tlaText}\n${cfgText}`);
 ```
 
 ## Directory docs

@@ -77,4 +77,28 @@ describe('TLC trace compatibility', () => {
     expect(toTlaValue(new Set(['b', 'a']))).toBe('{"a", "b"}');
     expect(toTlaValue({ x: 1, y: false })).toBe('[x |-> 1, y |-> FALSE]');
   });
+
+  it('can include quantum metadata in rendered TLC traces', () => {
+    const root = exampleTrace[0];
+    if (!root) {
+      throw new Error('Expected example trace to contain an initial state');
+    }
+
+    const quantumTrace: readonly TraceStep<ExampleState>[] = [
+      {
+        ...root,
+        quantum: { amplitude: 1, phase: 1, probability: 1 },
+      },
+    ];
+
+    const textTrace = checkerTraceToTlcText(
+      quantumTrace,
+      (state) => state,
+      { includeQuantum: true, quantumVariablePrefix: '__q_' },
+    );
+
+    expect(textTrace).toContain('/\\ __q_amplitude = 1');
+    expect(textTrace).toContain('/\\ __q_phase = 1');
+    expect(textTrace).toContain('/\\ __q_probability = 1');
+  });
 });

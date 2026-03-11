@@ -1,18 +1,24 @@
+import { LogicChainSuperposition } from './superposition.js';
 import type {
   CheckerOptions,
   CheckerResult,
   CheckerStats,
+  CheckerSuperpositionOptions,
   NamedPredicate,
+  QuorumEventuallyProperty,
   TemporalAction,
   TemporalModel,
+  TraceStep,
   Violation,
   WeakFairnessRule,
-  TraceStep,
 } from './types.js';
 
 interface Edge {
   readonly actionName: string;
   readonly toId: string;
+  readonly probability: number;
+  readonly amplitude: number;
+  readonly phase: 1 | -1;
 }
 
 interface GraphNode<State> {
@@ -23,20 +29,56 @@ interface GraphNode<State> {
   readonly viaAction: string | null;
   readonly enabledActions: Set<string>;
   readonly outgoing: Edge[];
+  readonly quorumSatisfied: Set<string>;
+  amplitude: number;
+  phase: 1 | -1;
+  probability: number;
+}
+
+interface ExpandedSuccessor<State> {
+  readonly actionName: string;
+  readonly state: State;
+  readonly pathId: string;
+  readonly amplitude: number;
+  readonly phase: 1 | -1;
+  readonly probability: number;
 }
 
 interface Expansion<State> {
   readonly nodeId: string;
   readonly enabledActions: readonly string[];
-  readonly successors: readonly {
-    readonly actionName: string;
-    readonly state: State;
-  }[];
+  readonly successors: readonly ExpandedSuccessor<State>[];
+  readonly quorumSatisfied: readonly string[];
+}
+
+interface RawSuccessor<State> {
+  readonly actionName: string;
+  readonly state: State;
+  readonly successorIndex: number;
+  readonly pathId: string;
+}
+
+interface NodeEventuallyProperty<State> {
+  readonly name: string;
+  readonly test: (node: Readonly<GraphNode<State>>) => boolean;
 }
 
 const DEFAULT_MAX_DEPTH = 64;
 const DEFAULT_MAX_STATES = 200_000;
 const DEFAULT_CONCURRENCY = 8;
+const QUANTUM_EPSILON = 1e-12;
+
+function multiplyPhase(left: 1 | -1, right: 1 | -1): 1 | -1 {
+  return left === right ? 1 : -1;
+}
+
+function defaultStateKey(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
 
 export class ForkRaceFoldModelChecker<State> {
   async check(
@@ -45,10 +87,13 @@ export class ForkRaceFoldModelChecker<State> {
   ): Promise<CheckerResult<State>> {
     const invariants = options.invariants ?? [];
     const eventual = options.eventual ?? [];
+    const eventualQuorum = options.eventualQuorum ?? [];
     const weakFairness = options.weakFairness ?? [];
     const maxDepth = Math.max(0, options.maxDepth ?? DEFAULT_MAX_DEPTH);
     const maxStates = Math.max(1, options.maxStates ?? DEFAULT_MAX_STATES);
     const concurrency = Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY);
+    const superposition = this.resolveSuperposition(options.superposition);
+    const superpositionEnabled = Boolean(superposition);
 
     const nodes = new Map<string, GraphNode<State>>();
 
@@ -58,8 +103,23 @@ export class ForkRaceFoldModelChecker<State> {
     let complete = true;
 
     const initialLayer: string[] = [];
+    const dedupedInitialStates: State[] = [];
+    const seenInitialIds = new Set<string>();
 
     for (const initialState of model.initialStates) {
+      const stateId = model.fingerprint(initialState);
+      if (seenInitialIds.has(stateId)) {
+        continue;
+      }
+      seenInitialIds.add(stateId);
+      dedupedInitialStates.push(initialState);
+    }
+
+    const initialAmplitude = superpositionEnabled
+      ? 1 / Math.sqrt(Math.max(1, dedupedInitialStates.length))
+      : 1;
+
+    for (const initialState of dedupedInitialStates) {
       const stateId = model.fingerprint(initialState);
       if (nodes.has(stateId)) {
         continue;
@@ -78,6 +138,10 @@ export class ForkRaceFoldModelChecker<State> {
         viaAction: null,
         enabledActions: new Set<string>(),
         outgoing: [],
+        quorumSatisfied: new Set<string>(),
+        amplitude: initialAmplitude,
+        phase: 1,
+        probability: initialAmplitude * initialAmplitude,
       };
 
       nodes.set(stateId, node);
@@ -111,7 +175,12 @@ export class ForkRaceFoldModelChecker<State> {
             if (!node) {
               throw new Error(`Missing frontier node "${nodeId}"`);
             }
-            return this.expandNode(node, model.actions);
+            return this.expandNode(
+              node,
+              model.actions,
+              superposition,
+              eventualQuorum,
+            );
           }),
         );
 
@@ -125,19 +194,38 @@ export class ForkRaceFoldModelChecker<State> {
             sourceNode.enabledActions.add(actionName);
           }
 
+          for (const quorumPropertyName of expansion.quorumSatisfied) {
+            sourceNode.quorumSatisfied.add(quorumPropertyName);
+          }
+
           for (const successor of expansion.successors) {
             transitionsExplored += 1;
 
             const nextDepth = sourceNode.depth + 1;
             const successorId = model.fingerprint(successor.state);
             const existingNode = nodes.get(successorId);
+            const incomingAmplitude = sourceNode.amplitude * successor.amplitude;
+            const incomingPhase = multiplyPhase(sourceNode.phase, successor.phase);
+            const incomingProbability = incomingAmplitude * incomingAmplitude;
 
             if (existingNode) {
               sourceNode.outgoing.push({
                 actionName: successor.actionName,
                 toId: successorId,
+                probability: incomingProbability,
+                amplitude: incomingAmplitude,
+                phase: incomingPhase,
               });
               foldedTransitions += 1;
+
+              if (superpositionEnabled) {
+                const existingSigned = existingNode.amplitude * existingNode.phase;
+                const incomingSigned = incomingAmplitude * incomingPhase;
+                const combinedSigned = existingSigned + incomingSigned;
+                existingNode.amplitude = Math.abs(combinedSigned);
+                existingNode.phase = combinedSigned >= 0 ? 1 : -1;
+                existingNode.probability = existingNode.amplitude * existingNode.amplitude;
+              }
               continue;
             }
 
@@ -159,6 +247,10 @@ export class ForkRaceFoldModelChecker<State> {
               viaAction: successor.actionName,
               enabledActions: new Set<string>(),
               outgoing: [],
+              quorumSatisfied: new Set<string>(),
+              amplitude: incomingAmplitude,
+              phase: incomingPhase,
+              probability: incomingProbability,
             };
 
             nodes.set(successorId, createdNode);
@@ -167,6 +259,9 @@ export class ForkRaceFoldModelChecker<State> {
             sourceNode.outgoing.push({
               actionName: successor.actionName,
               toId: successorId,
+              probability: incomingProbability,
+              amplitude: incomingAmplitude,
+              phase: incomingPhase,
             });
 
             const invariantViolation = this.firstInvariantViolation(
@@ -196,8 +291,13 @@ export class ForkRaceFoldModelChecker<State> {
       }
     }
 
+    const eventualProperties = this.buildNodeEventuallyProperties(
+      eventual,
+      eventualQuorum,
+    );
+
     const eventualViolation = complete
-      ? this.firstEventuallyViolation(nodes, eventual, weakFairness)
+      ? this.firstEventuallyViolation(nodes, eventualProperties, weakFairness)
       : null;
 
     const violations = eventualViolation ? [eventualViolation] : [];
@@ -214,6 +314,35 @@ export class ForkRaceFoldModelChecker<State> {
         maxFrontier,
       ),
     };
+  }
+
+  private resolveSuperposition(
+    options: CheckerSuperpositionOptions<State> | undefined,
+  ): CheckerSuperpositionOptions<State> | null {
+    if (!options) {
+      return null;
+    }
+    if (options.enabled === false) {
+      return null;
+    }
+    return options;
+  }
+
+  private buildNodeEventuallyProperties(
+    eventual: readonly NamedPredicate<State>[],
+    eventualQuorum: readonly QuorumEventuallyProperty<State>[],
+  ): readonly NodeEventuallyProperty<State>[] {
+    const statePredicates: NodeEventuallyProperty<State>[] = eventual.map((property) => ({
+      name: property.name,
+      test: (node) => property.test(node.state),
+    }));
+
+    const quorumPredicates: NodeEventuallyProperty<State>[] = eventualQuorum.map((property) => ({
+      name: property.name,
+      test: (node) => node.quorumSatisfied.has(property.name),
+    }));
+
+    return [...statePredicates, ...quorumPredicates];
   }
 
   private buildStats(
@@ -275,14 +404,14 @@ export class ForkRaceFoldModelChecker<State> {
 
   private firstEventuallyViolation(
     nodes: Map<string, GraphNode<State>>,
-    eventual: readonly NamedPredicate<State>[],
+    eventual: readonly NodeEventuallyProperty<State>[],
     weakFairness: readonly WeakFairnessRule[],
   ): Violation<State> | null {
     for (const property of eventual) {
       const badStateIds = new Set<string>();
 
       for (const node of nodes.values()) {
-        if (!property.test(node.state)) {
+        if (!property.test(node)) {
           badStateIds.add(node.id);
         }
       }
@@ -515,6 +644,11 @@ export class ForkRaceFoldModelChecker<State> {
         stateId: node.id,
         state: node.state,
         viaAction: node.viaAction,
+        quantum: {
+          amplitude: node.amplitude,
+          phase: node.phase,
+          probability: node.probability,
+        },
       });
 
       cursor = node.parentId;
@@ -526,9 +660,12 @@ export class ForkRaceFoldModelChecker<State> {
   private expandNode(
     node: GraphNode<State>,
     actions: readonly TemporalAction<State>[],
+    superposition: CheckerSuperpositionOptions<State> | null,
+    eventualQuorum: readonly QuorumEventuallyProperty<State>[],
   ): Expansion<State> {
     const enabledActions: string[] = [];
-    const successors: Array<{ actionName: string; state: State }> = [];
+    const rawSuccessors: RawSuccessor<State>[] = [];
+    let successorIndex = 0;
 
     for (const action of actions) {
       const enabled = action.enabled ? action.enabled(node.state) : true;
@@ -544,17 +681,185 @@ export class ForkRaceFoldModelChecker<State> {
       enabledActions.push(action.name);
 
       for (const nextState of nextStates) {
-        successors.push({
+        rawSuccessors.push({
           actionName: action.name,
           state: nextState,
+          successorIndex,
+          pathId: `${action.name}:${successorIndex}`,
         });
+        successorIndex += 1;
       }
     }
+
+    if (!superposition) {
+      return {
+        nodeId: node.id,
+        enabledActions,
+        successors: rawSuccessors.map((successor) => ({
+          actionName: successor.actionName,
+          state: successor.state,
+          pathId: successor.pathId,
+          amplitude: 1,
+          phase: 1,
+          probability: 1,
+        })),
+        quorumSatisfied: [],
+      };
+    }
+
+    const keyOfState = superposition.keyOfState ?? defaultStateKey;
+    const branchById = new Map<string, RawSuccessor<State>>();
+
+    const forked = LogicChainSuperposition.seed(node.state, { keyOfState }).fork(() =>
+      rawSuccessors.map((successor) => {
+        branchById.set(successor.pathId, successor);
+        const context = {
+          sourceState: node.state,
+          actionName: successor.actionName,
+          successorState: successor.state,
+          successorIndex: successor.successorIndex,
+        };
+
+        return {
+          id: successor.pathId,
+          state: successor.state,
+          step: successor.actionName,
+          relativeAmplitude: superposition.branchAmplitude
+            ? superposition.branchAmplitude(context)
+            : 1,
+          phase: superposition.branchPhase
+            ? superposition.branchPhase(context)
+            : 1,
+        };
+      }),
+    );
+
+    const interfered =
+      superposition.interfere === false
+        ? forked
+        : forked.interfere(keyOfState);
+
+    const distribution = interfered.distribution();
+
+    const resolvedSuccessors: ExpandedSuccessor<State>[] = distribution
+      .map((entry) => {
+        const raw = branchById.get(entry.chain.id);
+        if (!raw) {
+          return null;
+        }
+        return {
+          actionName: raw.actionName,
+          state: raw.state,
+          pathId: raw.pathId,
+          amplitude: Math.sqrt(entry.probability),
+          phase: entry.chain.phase,
+          probability: entry.probability,
+        };
+      })
+      .filter((entry): entry is ExpandedSuccessor<State> => entry !== null)
+      .sort(
+        (left, right) =>
+          right.probability - left.probability ||
+          left.pathId.localeCompare(right.pathId),
+      );
+
+    this.emitTopologyEvents(
+      node,
+      rawSuccessors,
+      resolvedSuccessors,
+      superposition,
+    );
+
+    const quorumSatisfied = this.evaluateQuorumProperties(
+      interfered,
+      eventualQuorum,
+    );
 
     return {
       nodeId: node.id,
       enabledActions,
-      successors,
+      successors: resolvedSuccessors,
+      quorumSatisfied,
     };
+  }
+
+  private emitTopologyEvents(
+    node: Readonly<GraphNode<State>>,
+    rawSuccessors: readonly RawSuccessor<State>[],
+    resolvedSuccessors: readonly ExpandedSuccessor<State>[],
+    superposition: CheckerSuperpositionOptions<State>,
+  ): void {
+    const sink = superposition.onTopologyEvent;
+    if (!sink || rawSuccessors.length < 2) {
+      return;
+    }
+
+    const requestId = `${node.id}@${node.depth + 1}`;
+    const paths = rawSuccessors.map((successor) => successor.pathId);
+    sink({ type: 'fork', id: requestId, paths });
+
+    const winner = resolvedSuccessors[0];
+    if (winner) {
+      sink({
+        type: 'race',
+        id: requestId,
+        winnerPath: winner.pathId,
+      });
+    }
+
+    const survivingPaths = new Set(resolvedSuccessors.map((successor) => successor.pathId));
+    for (const path of paths) {
+      if (!survivingPaths.has(path)) {
+        sink({
+          type: 'vent',
+          id: requestId,
+          path,
+        });
+      }
+    }
+
+    sink({ type: 'fold', id: requestId });
+  }
+
+  private evaluateQuorumProperties(
+    superposition: LogicChainSuperposition<State, string>,
+    eventualQuorum: readonly QuorumEventuallyProperty<State>[],
+  ): readonly string[] {
+    if (eventualQuorum.length === 0) {
+      return [];
+    }
+
+    const satisfied: string[] = [];
+
+    for (const property of eventualQuorum) {
+      const result = superposition.measureQuorum(
+        property.keyOfState,
+        property.threshold,
+      );
+      if (!result.satisfied) {
+        continue;
+      }
+
+      let goalSatisfied = true;
+
+      if (property.isGoalKey) {
+        goalSatisfied =
+          goalSatisfied &&
+          result.winningKey !== undefined &&
+          property.isGoalKey(result.winningKey);
+      }
+
+      if (property.isGoalState) {
+        goalSatisfied =
+          goalSatisfied &&
+          result.chains.some((chain) => property.isGoalState?.(chain.state) === true);
+      }
+
+      if (goalSatisfied) {
+        satisfied.push(property.name);
+      }
+    }
+
+    return satisfied;
   }
 }

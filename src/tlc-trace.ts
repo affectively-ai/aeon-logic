@@ -4,11 +4,21 @@ export interface TlcTraceState {
   readonly index: number;
   readonly label: string;
   readonly variables: Readonly<Record<string, string>>;
+  readonly quantum?: {
+    readonly amplitude: string;
+    readonly phase: string;
+    readonly probability: string;
+  };
 }
 
 export interface TlcJsonTrace {
   readonly format: 'tlc-trace/v1';
   readonly states: readonly TlcTraceState[];
+}
+
+export interface TlcTraceRenderOptions {
+  readonly includeQuantum?: boolean;
+  readonly quantumVariablePrefix?: string;
 }
 
 export function toTlaValue(value: unknown): string {
@@ -75,22 +85,42 @@ function formatStateVariables(
 export function checkerTraceToTlcJson<State>(
   trace: readonly TraceStep<State>[],
   stateToVariables: (state: Readonly<State>) => Readonly<Record<string, unknown>>,
+  options: TlcTraceRenderOptions = {},
 ): TlcJsonTrace {
+  const includeQuantum = options.includeQuantum ?? false;
+
   return {
     format: 'tlc-trace/v1',
-    states: trace.map((step, index) => ({
-      index: index + 1,
-      label: step.viaAction ?? 'Initial predicate',
-      variables: formatStateVariables(stateToVariables(step.state)),
-    })),
+    states: trace.map((step, index) => {
+      const state: TlcTraceState = {
+        index: index + 1,
+        label: step.viaAction ?? 'Initial predicate',
+        variables: formatStateVariables(stateToVariables(step.state)),
+      };
+
+      if (includeQuantum && step.quantum) {
+        return {
+          ...state,
+          quantum: {
+            amplitude: toTlaValue(step.quantum.amplitude),
+            phase: toTlaValue(step.quantum.phase),
+            probability: toTlaValue(step.quantum.probability),
+          },
+        };
+      }
+
+      return state;
+    }),
   };
 }
 
 export function checkerTraceToTlcText<State>(
   trace: readonly TraceStep<State>[],
   stateToVariables: (state: Readonly<State>) => Readonly<Record<string, unknown>>,
+  options: TlcTraceRenderOptions = {},
 ): string {
-  const jsonTrace = checkerTraceToTlcJson(trace, stateToVariables);
+  const quantumVariablePrefix = options.quantumVariablePrefix ?? '__q_';
+  const jsonTrace = checkerTraceToTlcJson(trace, stateToVariables, options);
   const lines: string[] = [];
 
   for (const state of jsonTrace.states) {
@@ -98,6 +128,11 @@ export function checkerTraceToTlcText<State>(
     for (const variableName of Object.keys(state.variables).sort()) {
       const value = state.variables[variableName];
       lines.push(`/\\ ${variableName} = ${value}`);
+    }
+    if (state.quantum) {
+      lines.push(`/\\ ${quantumVariablePrefix}amplitude = ${state.quantum.amplitude}`);
+      lines.push(`/\\ ${quantumVariablePrefix}phase = ${state.quantum.phase}`);
+      lines.push(`/\\ ${quantumVariablePrefix}probability = ${state.quantum.probability}`);
     }
   }
 
