@@ -5,6 +5,21 @@ import type {
 } from './types.js';
 
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/**
+ * Quorum temporal operators: `eventually@q` and `until@q`.
+ *
+ * These are novel operators that bridge temporal logic with distributed
+ * consensus. Standard temporal logic asks "does every path satisfy P?"
+ * Quorum operators ask "does a sufficient fraction of paths agree on P?"
+ *
+ * `eventually@0.67 Consensus` means: eventually, at least 67% of
+ * superposition branches converge to Consensus. This captures the
+ * semantics of Byzantine fault tolerance (BFT ≥ 2/3) and Raft
+ * (majority quorum) directly in the temporal formula language.
+ *
+ * The threshold parameter `q` maps to `QuorumEventuallyProperty.threshold`
+ * and is evaluated via `LogicChainSuperposition.measureQuorum()`.
+ */
 const EVENTUALLY_QUORUM_PATTERN = /^eventually@([+-]?(?:\d+\.?\d*|\.\d+))\s+(.+)$/u;
 const UNTIL_QUORUM_PATTERN =
   /^([A-Za-z_][A-Za-z0-9_]*)\s+until@([+-]?(?:\d+\.?\d*|\.\d+))\s+(.+)$/u;

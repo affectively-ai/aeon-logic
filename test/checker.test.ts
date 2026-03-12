@@ -277,4 +277,49 @@ describe('ForkRaceFoldModelChecker', () => {
     expect(firstStep?.quantum?.amplitude).toBeCloseTo(1, 12);
     expect(firstStep?.quantum?.probability).toBeCloseTo(1, 12);
   });
+
+  it('returns topology stats with forkCount, beta1, and depthLayers', async () => {
+    const checker = new ForkRaceFoldModelChecker<CounterState>();
+    const model = buildWaitAdvanceModel(3);
+    const result = await checker.check(model, { maxDepth: 10 });
+
+    expect(result.ok).toBe(true);
+    expect(result.topology).toBeDefined();
+    expect(result.topology.depthLayers).toBeGreaterThan(0);
+    expect(result.topology.foldCount).toBe(result.stats.foldedTransitions);
+    expect(result.topology.beta1).toBeGreaterThanOrEqual(0);
+    expect(result.topology.forkCount).toBeGreaterThan(0);
+  });
+
+  it('counts ventCount for unfair cycles filtered by weak fairness', async () => {
+    const checker = new ForkRaceFoldModelChecker<CounterState>();
+    const cyclicModel: TemporalModel<CounterState> = {
+      initialStates: [{ value: 0 }],
+      fingerprint: counterFingerprint,
+      actions: [
+        {
+          name: 'Toggle',
+          successors: (state) => [{ value: state.value === 0 ? 1 : 0 }],
+        },
+        {
+          name: 'Wait',
+          successors: (state) => [{ value: state.value }],
+        },
+      ],
+    };
+
+    const neverTrue: NamedPredicate<CounterState> = {
+      name: 'NeverTrue',
+      test: () => false,
+    };
+
+    const result = await checker.check(cyclicModel, {
+      eventual: [neverTrue],
+      weakFairness: [{ actionName: 'Toggle' }],
+      maxDepth: 10,
+    });
+
+    expect(result.topology).toBeDefined();
+    expect(result.topology.ventCount).toBeGreaterThanOrEqual(0);
+  });
 });

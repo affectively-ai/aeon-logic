@@ -4,6 +4,7 @@ import type {
   CheckerResult,
   CheckerStats,
   CheckerSuperpositionOptions,
+  CheckerTopologyStats,
   NamedPredicate,
   QuorumEventuallyProperty,
   TemporalAction,
@@ -101,6 +102,9 @@ export class ForkRaceFoldModelChecker<State> {
     let foldedTransitions = 0;
     let maxFrontier = 0;
     let complete = true;
+    let forkCount = 0;
+    let ventCount = 0;
+    let depthLayers = 0;
 
     const initialLayer: string[] = [];
     const dedupedInitialStates: State[] = [];
@@ -156,6 +160,9 @@ export class ForkRaceFoldModelChecker<State> {
           transitionsExplored,
           foldedTransitions,
           maxFrontier,
+          forkCount,
+          ventCount,
+          depthLayers,
         );
       }
     }
@@ -188,6 +195,10 @@ export class ForkRaceFoldModelChecker<State> {
           const sourceNode = nodes.get(expansion.nodeId);
           if (!sourceNode) {
             throw new Error(`Missing expansion source "${expansion.nodeId}"`);
+          }
+
+          if (expansion.successors.length > 1) {
+            forkCount += 1;
           }
 
           for (const actionName of expansion.enabledActions) {
@@ -284,6 +295,7 @@ export class ForkRaceFoldModelChecker<State> {
         }
       }
 
+      depthLayers += 1;
       currentLayerIds = nextLayerIds;
 
       if (!complete && currentLayerIds.length === 0) {
@@ -296,11 +308,15 @@ export class ForkRaceFoldModelChecker<State> {
       eventualQuorum,
     );
 
-    const eventualViolation = complete
+    const eventualResult = complete
       ? this.firstEventuallyViolation(nodes, eventualProperties, weakFairness)
       : null;
 
-    const violations = eventualViolation ? [eventualViolation] : [];
+    if (eventualResult) {
+      ventCount += eventualResult.ventCount;
+    }
+
+    const violations = eventualResult?.violation ? [eventualResult.violation] : [];
 
     return {
       ok: violations.length === 0,
@@ -312,6 +328,14 @@ export class ForkRaceFoldModelChecker<State> {
         transitionsExplored,
         foldedTransitions,
         maxFrontier,
+      ),
+      topology: this.buildTopology(
+        forkCount,
+        foldedTransitions,
+        ventCount,
+        depthLayers,
+        nodes.size,
+        transitionsExplored,
       ),
     };
   }
@@ -359,6 +383,26 @@ export class ForkRaceFoldModelChecker<State> {
     };
   }
 
+  private buildTopology(
+    forkCount: number,
+    foldedTransitions: number,
+    ventCount: number,
+    depthLayers: number,
+    statesExplored: number,
+    transitionsExplored: number,
+  ): CheckerTopologyStats {
+    // β₁ = edges - nodes + connected components
+    // For a connected BFS graph, components = 1
+    const beta1 = Math.max(0, transitionsExplored - statesExplored + 1);
+    return {
+      forkCount,
+      foldCount: foldedTransitions,
+      ventCount,
+      beta1,
+      depthLayers,
+    };
+  }
+
   private failureResult(
     complete: boolean,
     violations: readonly Violation<State>[],
@@ -366,6 +410,9 @@ export class ForkRaceFoldModelChecker<State> {
     transitionsExplored: number,
     foldedTransitions: number,
     maxFrontier: number,
+    forkCount: number,
+    ventCount: number,
+    depthLayers: number,
   ): CheckerResult<State> {
     return {
       ok: false,
@@ -377,6 +424,14 @@ export class ForkRaceFoldModelChecker<State> {
         transitionsExplored,
         foldedTransitions,
         maxFrontier,
+      ),
+      topology: this.buildTopology(
+        forkCount,
+        foldedTransitions,
+        ventCount,
+        depthLayers,
+        statesExplored,
+        transitionsExplored,
       ),
     };
   }
@@ -406,7 +461,9 @@ export class ForkRaceFoldModelChecker<State> {
     nodes: Map<string, GraphNode<State>>,
     eventual: readonly NodeEventuallyProperty<State>[],
     weakFairness: readonly WeakFairnessRule[],
-  ): Violation<State> | null {
+  ): { violation: Violation<State> | null; ventCount: number } {
+    let ventCount = 0;
+
     for (const property of eventual) {
       const badStateIds = new Set<string>();
 
@@ -428,10 +485,13 @@ export class ForkRaceFoldModelChecker<State> {
 
         if (node.outgoing.length === 0) {
           return {
-            kind: 'eventual',
-            name: property.name,
-            message: `Eventually property "${property.name}" fails at terminal state ${badStateId}.`,
-            trace: this.buildTrace(nodes, badStateId),
+            violation: {
+              kind: 'eventual',
+              name: property.name,
+              message: `Eventually property "${property.name}" fails at terminal state ${badStateId}.`,
+              trace: this.buildTrace(nodes, badStateId),
+            },
+            ventCount,
           };
         }
       }
@@ -462,6 +522,7 @@ export class ForkRaceFoldModelChecker<State> {
         }
 
         if (!this.isFairCycle(component, nodes, weakFairness)) {
+          ventCount += 1;
           continue;
         }
 
@@ -470,16 +531,19 @@ export class ForkRaceFoldModelChecker<State> {
           continue;
         }
         return {
-          kind: 'eventual',
-          name: property.name,
-          message: `Eventually property "${property.name}" fails: reachable fair cycle avoids it.`,
-          trace: this.buildTrace(nodes, cycleEntryState),
-          cycleStateIds: component,
+          violation: {
+            kind: 'eventual',
+            name: property.name,
+            message: `Eventually property "${property.name}" fails: reachable fair cycle avoids it.`,
+            trace: this.buildTrace(nodes, cycleEntryState),
+            cycleStateIds: component,
+          },
+          ventCount,
         };
       }
     }
 
-    return null;
+    return { violation: null, ventCount };
   }
 
   private isFairCycle(

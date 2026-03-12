@@ -108,6 +108,28 @@ export interface Violation<State> {
   readonly cycleStateIds?: readonly string[];
 }
 
+/**
+ * Topological diagnostics of the exploration graph.
+ *
+ * The checker IS a discrete Feynman path integral: each BFS layer is a time
+ * step, each state is a spatial position, amplitude propagation is the kernel,
+ * and folded transitions are interference. These counters make the path-integral
+ * structure observable.
+ *
+ * - forkCount: expansions with >1 successor (β₁ += N-1 each)
+ * - foldCount: transitions landing on an already-visited state (interference)
+ * - ventCount: unfair cycles filtered by weak fairness (irreversible removal)
+ * - beta1: first Betti number of the exploration graph (independent cycles)
+ * - depthLayers: number of BFS layers (path-integral time steps)
+ */
+export interface CheckerTopologyStats {
+  readonly forkCount: number;
+  readonly foldCount: number;
+  readonly ventCount: number;
+  readonly beta1: number;
+  readonly depthLayers: number;
+}
+
 export interface CheckerStats {
   readonly statesExplored: number;
   readonly transitionsExplored: number;
@@ -121,4 +143,6 @@ export interface CheckerResult<State> {
   readonly violations: readonly Violation<State>[];
   readonly stateCount: number;
   readonly stats: CheckerStats;
+  /** Topological diagnostics: the checker as a discrete path integral. */
+  readonly topology: CheckerTopologyStats;
 }

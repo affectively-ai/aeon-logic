@@ -40,6 +40,7 @@ export type {
   CheckerResult,
   CheckerStats,
   CheckerTopologyEvent,
+  CheckerTopologyStats,
   CheckerTopologyEventFold,
   CheckerTopologyEventFork,
   CheckerTopologyEventRace,
