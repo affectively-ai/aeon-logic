@@ -18,6 +18,7 @@ export { renderTlcArtifactPair } from './tlc-artifacts.js';
 export { LogicChainSuperposition } from './superposition.js';
 export { ComplexLogicChainSuperposition } from './complex-superposition.js';
 export { renderSuperpositionArtifactPair } from './superposition-artifacts.js';
+export { renderSelfVerificationArtifactPair } from './self-verification-artifacts.js';
 export {
   compileTemporalFormula,
   compileTemporalFormulaSet,
@@ -87,6 +88,9 @@ export type {
 export type {
   SuperpositionArtifactOptions,
 } from './superposition-artifacts.js';
+export type {
+  SelfVerificationArtifactOptions,
+} from './self-verification-artifacts.js';
 export type {
   TopologySamplerLike,
 } from './topology-bridge.js';
