@@ -33,6 +33,14 @@ export {
   collectTopologyEvents,
   createTopologySamplerBridge,
 } from './topology-bridge.js';
+export {
+  buildDefaultGgCheckerOptions,
+  buildGgTemporalModel,
+  checkGgProgram,
+  getGgRootNodeIds,
+  getGgTerminalNodeIds,
+  parseGgProgram,
+} from './gg.js';
 
 export type {
   CheckerSuperpositionBranchContext,
@@ -45,6 +53,7 @@ export type {
   CheckerTopologyEventFold,
   CheckerTopologyEventFork,
   CheckerTopologyEventRace,
+  CheckerTopologyEventObserve,
   CheckerTopologyEventVent,
   NamedPredicate,
   QuorumEventuallyProperty,
@@ -85,6 +94,15 @@ export type {
 export type {
   FlowForkRaceFoldLike,
 } from './flow-bridge.js';
+export type {
+  GgCheckerDefaults,
+  GgEdge,
+  GgNode,
+  GgProgram,
+  GgCollapseStrategy,
+  GgTemporalModelOptions,
+  GgTopologyState,
+} from './gg.js';
 export type {
   SuperpositionArtifactOptions,
 } from './superposition-artifacts.js';

@@ -13,6 +13,11 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
 - TLA module (`.tla`) parsing and rendering
 - WASM-friendly TLA sandbox runner (`runTlaSandbox`) with module/config partitioning
 - Checker trace adapters to TLC-like text and JSON representations
+- Native `.gg` support:
+  - `.gg` parsing into typed graph topology (`parseGgProgram`)
+  - root/terminal node discovery helpers
+  - direct `.gg` → `TemporalModel` conversion (`buildGgTemporalModel`)
+  - one-shot formal verification wrapper (`checkGgProgram`)
 - Logic-chain superposition primitives:
   - superposition/fork expansion
   - branch interference (constructive/destructive)
@@ -45,6 +50,7 @@ bun run build
 import {
   ForkRaceFoldModelChecker,
   LogicChainSuperposition,
+  checkGgProgram,
   parseTlcConfig,
   runTlaSandbox,
   renderTlaModule,
@@ -89,6 +95,9 @@ const superposed = LogicChainSuperposition.seed({ score: 0 })
 const winner = superposed.measureArgmax();
 
 const tlaSandboxReport = runTlaSandbox(`${tlaText}\n${cfgText}`);
+const ggResult = await checkGgProgram(`
+  (input)-[:FORK]->(a | b)-[:RACE]->(winner)
+`);
 ```
 
 ## Directory docs

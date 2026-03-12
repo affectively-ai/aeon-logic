@@ -17,4 +17,5 @@ Core library modules:
 - `tla-sandbox.ts`: WASM-friendly TLA sandbox runner and module/config artifact partitioning.
 - `tlc-trace.ts`: checker trace adapters for TLC-compatible text/JSON.
 - `tlc-artifacts.ts`: convenience renderer for `.tla` + `.cfg` artifact pairs.
+- `gg.ts`: native `.gg` parsing, topology analysis, model conversion, and check helpers.
 - `index.ts`: public exports.

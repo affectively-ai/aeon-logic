@@ -14,3 +14,4 @@ This directory validates:
 - TLA module parse/render compatibility
 - TLA sandbox partitioning and parser round-trip execution reports
 - TLC trace conversion and parsing
+- native `.gg` parsing/modeling/checking behavior

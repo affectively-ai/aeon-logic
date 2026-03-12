@@ -55,11 +55,18 @@ export interface CheckerTopologyEventFold {
   readonly id: string;
 }
 
+export interface CheckerTopologyEventObserve {
+  readonly type: 'observe';
+  readonly id: string;
+  readonly strategy?: string;
+}
+
 export type CheckerTopologyEvent =
   | CheckerTopologyEventFork
   | CheckerTopologyEventRace
   | CheckerTopologyEventVent
-  | CheckerTopologyEventFold;
+  | CheckerTopologyEventFold
+  | CheckerTopologyEventObserve;
 
 export interface CheckerSuperpositionOptions<State> {
   readonly enabled?: boolean;

@@ -289,6 +289,9 @@ export class ForkRaceFoldModelChecker<State> {
                 transitionsExplored,
                 foldedTransitions,
                 maxFrontier,
+                forkCount,
+                ventCount,
+                depthLayers,
               );
             }
           }
