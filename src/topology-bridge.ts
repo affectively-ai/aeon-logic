@@ -5,6 +5,7 @@ export interface TopologySamplerLike {
   race(id: string, winnerPath: string): void;
   vent(id: string, path: string): void;
   fold(id: string): void;
+  observe?(id: string, strategy?: string): void;
 }
 
 export function createTopologySamplerBridge(
@@ -23,6 +24,9 @@ export function createTopologySamplerBridge(
         return;
       case 'fold':
         sampler.fold(event.id);
+        return;
+      case 'observe':
+        sampler.observe?.(event.id, event.strategy);
         return;
       default: {
         const exhaustiveCheck: never = event;
