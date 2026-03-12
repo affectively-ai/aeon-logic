@@ -9,6 +9,7 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
   - eventual (`<>`) property checking
   - weak fairness filtering (`WF`) for liveness counterexamples
 - TLC config (`.cfg`) parsing and serialization
+  - supports nested/multiline `CONSTANTS` assignments (sets, tuples, maps)
 - TLA module (`.tla`) parsing and rendering
 - WASM-friendly TLA sandbox runner (`runTlaSandbox`) with module/config partitioning
 - Checker trace adapters to TLC-like text and JSON representations
@@ -16,6 +17,9 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
   - superposition/fork expansion
   - branch interference (constructive/destructive)
   - measurement policies (argmax, quorum, merge)
+- Temporal formula DSL with superposition operators:
+  - `always`, `eventually`
+  - `eventually@q` and `until@q` quorum operators
 - Advanced composition helpers:
   - complex-amplitude superposition chains
   - checker topology event bridge for `TopologySampler` sinks

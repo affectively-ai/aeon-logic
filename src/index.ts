@@ -18,6 +18,15 @@ export { renderTlcArtifactPair } from './tlc-artifacts.js';
 export { LogicChainSuperposition } from './superposition.js';
 export { ComplexLogicChainSuperposition } from './complex-superposition.js';
 export { renderSuperpositionArtifactPair } from './superposition-artifacts.js';
+export {
+  compileTemporalFormula,
+  compileTemporalFormulaSet,
+  compileTemporalFormulaText,
+  mergeCompiledTemporalFormulasIntoCheckerOptions,
+  parseTemporalFormula,
+  parseTemporalFormulaSet,
+  renderTemporalFormula,
+} from './temporal-formula.js';
 export { LogicChainFlowBridge } from './flow-bridge.js';
 export {
   collectTopologyEvents,
@@ -88,3 +97,13 @@ export type {
   QuorumMeasurementResult,
   WeightedLogicChain,
 } from './superposition.js';
+export type {
+  AlwaysFormula,
+  CompiledTemporalFormulaSet,
+  EventuallyFormula,
+  EventuallyQuorumFormula,
+  TemporalFormula,
+  TemporalFormulaCompileContext,
+  UntilFormula,
+  UntilQuorumFormula,
+} from './temporal-formula.js';

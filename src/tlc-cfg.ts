@@ -28,6 +28,14 @@ interface MutableTlcExtraSection {
   readonly values: string[];
 }
 
+interface PendingConstantAssignment {
+  readonly name: string;
+  readonly operator: '=' | '<-';
+  readonly valueParts: string[];
+  startLine: number;
+  delimiterDepth: number;
+}
+
 interface MutableTlcConfig {
   specification?: string;
   init?: string;
@@ -137,6 +145,67 @@ function parseConstantAssignment(line: string, lineNumber: number): TlcConstantA
   };
 }
 
+function parseConstantAssignmentStart(
+  line: string,
+  lineNumber: number,
+): Omit<TlcConstantAssignment, 'value'> & { value: string } {
+  const assignment = parseConstantAssignment(line, lineNumber);
+  return assignment;
+}
+
+function computeDelimiterDelta(text: string): number {
+  let delta = 0;
+  let inString = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (!char) {
+      continue;
+    }
+
+    if (char === '"' && text[index - 1] !== '\\') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (char === '<' && next === '<') {
+      delta += 1;
+      index += 1;
+      continue;
+    }
+
+    if (char === '>' && next === '>') {
+      delta -= 1;
+      index += 1;
+      continue;
+    }
+
+    if (char === '{' || char === '[' || char === '(') {
+      delta += 1;
+      continue;
+    }
+
+    if (char === '}' || char === ']' || char === ')') {
+      delta -= 1;
+    }
+  }
+
+  return delta;
+}
+
+function normalizeConstantValue(parts: readonly string[]): string {
+  return parts
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .join(' ');
+}
+
 function parseBoolean(value: string, lineNumber: number): boolean {
   const normalized = value.trim().toUpperCase();
   if (normalized === 'TRUE') {
@@ -244,6 +313,7 @@ export function parseTlcConfig(text: string): TlcConfig {
   let pendingSingleHeading: KnownHeading | null = null;
   let activeListHeading: KnownHeading | null = null;
   let activeExtraSection: string | null = null;
+  let pendingConstant: PendingConstantAssignment | null = null;
 
   const lines = text.split(/\r?\n/);
 
@@ -260,6 +330,12 @@ export function parseTlcConfig(text: string): TlcConfig {
     const parsedHeading = parseHeading(line);
 
     if (parsedHeading && KNOWN_HEADINGS.has(parsedHeading.heading as KnownHeading)) {
+      if (pendingConstant !== null) {
+        throw new Error(
+          `Unterminated CONSTANT assignment started at line ${pendingConstant.startLine}`,
+        );
+      }
+
       const heading = parsedHeading.heading as KnownHeading;
       const remainder = parsedHeading.remainder;
 
@@ -279,13 +355,39 @@ export function parseTlcConfig(text: string): TlcConfig {
       if (LIST_VALUE_HEADINGS.has(heading)) {
         activeListHeading = heading;
         if (remainder.length > 0) {
-          pushListValue(config, heading, remainder, lineNumber);
+          if (heading === 'CONSTANT' || heading === 'CONSTANTS') {
+            const constant = parseConstantAssignmentStart(remainder, lineNumber);
+            const depth = computeDelimiterDelta(constant.value);
+            if (depth > 0) {
+              pendingConstant = {
+                name: constant.name,
+                operator: constant.operator,
+                valueParts: [constant.value],
+                startLine: lineNumber,
+                delimiterDepth: depth,
+              };
+            } else {
+              if (depth < 0) {
+                throw new Error(
+                  `Unbalanced CONSTANT assignment at line ${lineNumber}: "${remainder}"`,
+                );
+              }
+              config.constants.push(constant);
+            }
+          } else {
+            pushListValue(config, heading, remainder, lineNumber);
+          }
         }
         continue;
       }
     }
 
     if (parsedHeading && !KNOWN_HEADINGS.has(parsedHeading.heading as KnownHeading)) {
+      if (pendingConstant !== null) {
+        throw new Error(
+          `Unterminated CONSTANT assignment started at line ${pendingConstant.startLine}`,
+        );
+      }
       activeListHeading = null;
       pendingSingleHeading = null;
       activeExtraSection = parsedHeading.heading;
@@ -304,6 +406,51 @@ export function parseTlcConfig(text: string): TlcConfig {
     }
 
     if (activeListHeading) {
+      if (activeListHeading === 'CONSTANT' || activeListHeading === 'CONSTANTS') {
+        if (pendingConstant !== null) {
+          pendingConstant.valueParts.push(line);
+          pendingConstant.delimiterDepth += computeDelimiterDelta(line);
+
+          if (pendingConstant.delimiterDepth < 0) {
+            throw new Error(
+              `Unbalanced CONSTANT assignment at line ${lineNumber}: "${line}"`,
+            );
+          }
+
+          if (pendingConstant.delimiterDepth === 0) {
+            config.constants.push({
+              name: pendingConstant.name,
+              operator: pendingConstant.operator,
+              value: normalizeConstantValue(pendingConstant.valueParts),
+            });
+            pendingConstant = null;
+          }
+          continue;
+        }
+
+        const constant = parseConstantAssignmentStart(line, lineNumber);
+        const depth = computeDelimiterDelta(constant.value);
+        if (depth > 0) {
+          pendingConstant = {
+            name: constant.name,
+            operator: constant.operator,
+            valueParts: [constant.value],
+            startLine: lineNumber,
+            delimiterDepth: depth,
+          };
+          continue;
+        }
+
+        if (depth < 0) {
+          throw new Error(
+            `Unbalanced CONSTANT assignment at line ${lineNumber}: "${line}"`,
+          );
+        }
+
+        config.constants.push(constant);
+        continue;
+      }
+
       pushListValue(config, activeListHeading, line, lineNumber);
       continue;
     }
@@ -318,6 +465,12 @@ export function parseTlcConfig(text: string): TlcConfig {
 
   if (pendingSingleHeading) {
     throw new Error(`Missing value for section "${pendingSingleHeading}"`);
+  }
+
+  if (pendingConstant !== null) {
+    throw new Error(
+      `Unterminated CONSTANT assignment started at line ${pendingConstant.startLine}`,
+    );
   }
 
   const extraSections =

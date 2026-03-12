@@ -80,4 +80,42 @@ ALIAS
     expect(serialized).toContain('CHECK_DEADLOCK FALSE');
     expect(serialized).toContain('ALIAS');
   });
+
+  it('parses multiline CONSTANT assignments with nested sets', () => {
+    const multilineConstants = `SPECIFICATION Spec
+CONSTANTS
+  AllowedFamilies = {
+    {0, 1, 2, 5, 6, 7, 8},
+    {0, 1, 3, 4, 7, 8}
+  }
+INVARIANTS
+  InvAllowedSubset
+`;
+
+    const parsed = parseTlcConfig(multilineConstants);
+    expect(parsed.constants).toHaveLength(1);
+
+    const assignment = parsed.constants[0];
+    expect(assignment?.name).toBe('AllowedFamilies');
+    expect(assignment?.operator).toBe('=');
+    expect(assignment?.value.startsWith('{')).toBe(true);
+    expect(assignment?.value.endsWith('}')).toBe(true);
+    expect(assignment?.value).toContain('{0, 1, 2, 5, 6, 7, 8}');
+    expect(assignment?.value).toContain('{0, 1, 3, 4, 7, 8}');
+
+    const serialized = serializeTlcConfig(parsed);
+    const reparsed = parseTlcConfig(serialized);
+    expect(reparsed).toEqual(parsed);
+  });
+
+  it('throws on unterminated multiline CONSTANT assignment', () => {
+    const malformed = `CONSTANTS
+  AllowedFamilies = {
+    {0, 1, 2}
+`;
+
+    expect(() => parseTlcConfig(malformed)).toThrow(
+      /Unterminated CONSTANT assignment/,
+    );
+  });
 });

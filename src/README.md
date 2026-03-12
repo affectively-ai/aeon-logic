@@ -8,6 +8,7 @@ Core library modules:
 - `checker.ts`: fork/race/fold model checker.
 - `superposition.ts`: logic-chain superposition, interference, and measurement primitives.
 - `complex-superposition.ts`: complex-amplitude superposition primitives.
+- `temporal-formula.ts`: temporal formula parser/compiler (`always`, `eventually`, `eventually@q`, `until`, `until@q`).
 - `topology-bridge.ts`: checker-event bridge for `TopologySampler`-style sinks.
 - `flow-bridge.ts`: chain-to-stream bridge for Aeon Flow-style transports.
 - `superposition-artifacts.ts`: generated TLA/CFG artifact pairs for superposition scenarios.

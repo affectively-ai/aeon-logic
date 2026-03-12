@@ -841,18 +841,28 @@ export class ForkRaceFoldModelChecker<State> {
       }
 
       let goalSatisfied = true;
+      let goalChains = result.chains;
 
       if (property.isGoalKey) {
+        const goalKeyResult = superposition.measureQuorum(
+          (state) => (property.isGoalKey?.(property.keyOfState(state)) ? '__goal__' : '__other__'),
+          property.threshold,
+        );
+
         goalSatisfied =
           goalSatisfied &&
-          result.winningKey !== undefined &&
-          property.isGoalKey(result.winningKey);
+          goalKeyResult.satisfied &&
+          goalKeyResult.winningKey === '__goal__';
+
+        if (goalSatisfied) {
+          goalChains = goalKeyResult.chains;
+        }
       }
 
       if (property.isGoalState) {
         goalSatisfied =
           goalSatisfied &&
-          result.chains.some((chain) => property.isGoalState?.(chain.state) === true);
+          goalChains.some((chain) => property.isGoalState?.(chain.state) === true);
       }
 
       if (goalSatisfied) {
