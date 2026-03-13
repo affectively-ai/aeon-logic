@@ -8,7 +8,7 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
   - invariant checking
   - eventual (`<>`) property checking
   - weak fairness filtering (`WF`) for liveness counterexamples
-  - wavefront topology diagnostics (`beta1`, `frontierFill`, `wally`)
+  - wavefront topology diagnostics (`beta1`, `frontierFill`, `wallaceNumber`, `wally`)
 - TLC config (`.cfg`) parsing and serialization
   - supports nested/multiline `CONSTANTS` assignments (sets, tuples, maps)
 - TLA module (`.tla`) parsing and rendering

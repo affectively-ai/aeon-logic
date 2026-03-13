@@ -169,7 +169,11 @@ function scoreCheckerResult<State>(result: CheckerResult<State>): number {
 
   score -= Math.min(
     0.2,
-    (result.topology.wally ?? result.topology.frontierDeficit) * 0.2,
+    (
+      result.topology.wallaceNumber ??
+      result.topology.wally ??
+      result.topology.frontierDeficit
+    ) * 0.2,
   );
 
   return clamp(score, 0, 1);

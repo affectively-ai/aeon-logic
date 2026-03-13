@@ -407,7 +407,7 @@ export class ForkRaceFoldModelChecker<State> {
     const depthLayers = frontierByLayer.length;
     const envelopeArea = peakFrontier * depthLayers;
     const frontierFill = envelopeArea === 0 ? 1 : frontierArea / envelopeArea;
-    const wally = 1 - frontierFill;
+    const wallaceNumber = 1 - frontierFill;
     return {
       forkCount,
       foldCount: foldedTransitions,
@@ -417,8 +417,9 @@ export class ForkRaceFoldModelChecker<State> {
       frontierByLayer: [...frontierByLayer],
       frontierArea,
       frontierFill,
-      wally,
-      frontierDeficit: wally,
+      wallaceNumber,
+      wally: wallaceNumber,
+      frontierDeficit: wallaceNumber,
     };
   }
 

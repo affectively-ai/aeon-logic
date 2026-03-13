@@ -145,7 +145,9 @@ export interface CheckerTopologyStats {
    * 1.0 means the observed wavefront stayed maximally full for its own shape.
    */
   readonly frontierFill: number;
-  /** Wallace frontier deficit scalar, measured in Wallys. */
+  /** Canonical Wallace frontier deficit scalar, measured in Wallys. */
+  readonly wallaceNumber: number;
+  /** Short-form compatibility alias for the Wallace frontier deficit scalar. */
   readonly wally: number;
   /** Compatibility alias for the Wallace frontier deficit scalar. */
   readonly frontierDeficit: number;

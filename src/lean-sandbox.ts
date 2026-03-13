@@ -89,6 +89,7 @@ export interface LeanSandboxOptions {
   readonly path?: string;
   readonly cwd?: string;
   readonly build?: boolean;
+  readonly buildTargets?: readonly string[];
   readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -266,9 +267,10 @@ function resolveLakeBinary(
 function runLakeBuild(
   lakePath: string,
   projectRoot: string,
+  buildTargets: readonly string[],
   environment: Readonly<Record<string, string>>,
 ): LeanSandboxBuildReport {
-  const buildProcess = spawnSync(lakePath, ['build'], {
+  const buildProcess = spawnSync(lakePath, ['build', ...buildTargets], {
     cwd: projectRoot,
     encoding: 'utf8',
     env: environment,
@@ -361,6 +363,7 @@ export function runLeanSandbox(
   const inspection = inspectLeanProject(targetPath);
   const environment = buildSpawnEnv(options.env);
   const buildRequested = options.build ?? true;
+  const buildTargets = [...(options.buildTargets ?? [])];
   const lakePath = inspection.lakefilePath ? resolveLakeBinary(environment) : null;
   const logs: string[] = [];
 
@@ -386,8 +389,12 @@ export function runLeanSandbox(
   } else if (!lakePath) {
     logs.push('Lake binary not found; skipping build.');
   } else {
-    logs.push('Running lake build...');
-    buildReport = runLakeBuild(lakePath, inspection.root, environment);
+    logs.push(
+      buildTargets.length > 0
+        ? `Running lake build for targets: ${buildTargets.join(', ')}`
+        : 'Running lake build...',
+    );
+    buildReport = runLakeBuild(lakePath, inspection.root, buildTargets, environment);
     logs.push(buildReport.ok ? 'Lean build passed.' : 'Lean build failed.');
   }
 

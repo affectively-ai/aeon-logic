@@ -150,6 +150,7 @@ describe('ForkRaceFoldModelChecker', () => {
     expect(result.topology.frontierByLayer).toEqual([1, 2, 1]);
     expect(result.topology.frontierArea).toBe(4);
     expect(result.topology.frontierFill).toBeCloseTo(2 / 3, 10);
+    expect(result.topology.wallaceNumber).toBeCloseTo(1 / 3, 10);
     expect(result.topology.wally).toBeCloseTo(1 / 3, 10);
     expect(result.topology.frontierDeficit).toBeCloseTo(1 / 3, 10);
   });

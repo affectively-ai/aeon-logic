@@ -97,6 +97,29 @@ describe('Lean sandbox helpers', () => {
     );
   });
 
+  it('builds requested targets without sweeping unrelated local modules', () => {
+    const fixture = createLeanProjectFixture();
+    writeFileSync(
+      join(fixture.root, 'Lean', 'Scratchpad.lean'),
+      'theorem broken_scratchpad : 0 = 1 := by omega\n',
+    );
+
+    const result = runLeanSandbox({
+      path: fixture.root,
+      build: true,
+      buildTargets: ['Example'],
+    });
+
+    if (!result.report.tool.lakeAvailable) {
+      expect(result.report.build.attempted).toBe(false);
+      return;
+    }
+
+    expect(result.report.build.attempted).toBe(true);
+    expect(result.report.build.ok).toBe(true);
+    expect(result.logs).toContain('Running lake build for targets: Example');
+  });
+
   it('supports single Lean files without a Lake project', () => {
     const root = mkdtempSync(join(tmpdir(), 'aeon-logic-lean-file-'));
     createdDirectories.push(root);
