@@ -15,6 +15,7 @@ Core library modules:
 - `tlc-cfg.ts`: TLC `.cfg` parser and serializer.
 - `tla-module.ts`: TLA `.tla` module parser and renderer.
 - `tla-sandbox.ts`: WASM-friendly TLA sandbox runner and module/config artifact partitioning.
+- `browser.ts`: browser-safe entry that exposes only TLA sandbox helpers without Node-only Lean tooling.
 - `lean-sandbox.ts`: Lean project discovery, metadata inspection, and optional `lake build` execution.
 - `tlc-trace.ts`: checker trace adapters for TLC-compatible text/JSON.
 - `tlc-artifacts.ts`: convenience renderer for `.tla` + `.cfg` artifact pairs.

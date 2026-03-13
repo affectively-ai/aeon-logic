@@ -13,6 +13,7 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
   - supports nested/multiline `CONSTANTS` assignments (sets, tuples, maps)
 - TLA module (`.tla`) parsing and rendering
 - WASM-friendly TLA sandbox runner (`runTlaSandbox`) with module/config partitioning
+- Browser-safe TLA-only entry (`@affectively/aeon-logic/browser`) that avoids Node-only Lean helpers in client bundles
 - Node-friendly Lean project inspection and optional Lake build sandbox (`runLeanSandbox`)
 - Checker trace adapters to TLC-like text and JSON representations
 - Native `.gg` support:
