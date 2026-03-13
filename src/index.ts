@@ -9,6 +9,11 @@ export {
   runTlaSandbox,
 } from './tla-sandbox.js';
 export {
+  findLeanProjectRoot,
+  inspectLeanProject,
+  runLeanSandbox,
+} from './lean-sandbox.js';
+export {
   checkerTraceToTlcJson,
   checkerTraceToTlcText,
   parseTlcTextTrace,
@@ -41,6 +46,13 @@ export {
   getGgTerminalNodeIds,
   parseGgProgram,
 } from './gg.js';
+export {
+  composeBoundaryLearningReport,
+  createInversionPair,
+  runBoundaryLearningSuite,
+  runBoundarySweep,
+  runInversionCheck,
+} from './boundary-learning.js';
 
 export type {
   CheckerSuperpositionBranchContext,
@@ -65,11 +77,36 @@ export type {
   WeakFairnessRule,
 } from './types.js';
 export type {
+  BoundaryFrontier,
+  BoundaryLearningReport,
+  BoundaryLearningSuiteConfig,
+  BoundaryLearningSuiteSpec,
+  BoundarySweepConfig,
+  BoundarySweepPoint,
+  BoundarySweepResult,
+  InversionCheckOutcome,
+  InversionPair,
+  InversionSpec,
+  PairLearningOutcome,
+  PredicateCheckOutcome,
+  SweepRange,
+} from './boundary-learning.js';
+export type {
   TlcConfig,
   TlcConstantAssignment,
   TlcExtraSection,
 } from './tlc-cfg.js';
 export type { TlaModule } from './tla-module.js';
+export type {
+  LeanProjectInspection,
+  LeanSandboxArtifacts,
+  LeanSandboxBuildReport,
+  LeanSandboxOptions,
+  LeanSandboxProjectReport,
+  LeanSandboxReport,
+  LeanSandboxResult,
+  LeanSandboxToolReport,
+} from './lean-sandbox.js';
 export type {
   TlaSandboxArtifacts,
   TlaSandboxConfigReport,

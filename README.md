@@ -8,10 +8,12 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
   - invariant checking
   - eventual (`<>`) property checking
   - weak fairness filtering (`WF`) for liveness counterexamples
+  - wavefront topology diagnostics (`beta1`, `frontierFill`, `wally`)
 - TLC config (`.cfg`) parsing and serialization
   - supports nested/multiline `CONSTANTS` assignments (sets, tuples, maps)
 - TLA module (`.tla`) parsing and rendering
 - WASM-friendly TLA sandbox runner (`runTlaSandbox`) with module/config partitioning
+- Node-friendly Lean project inspection and optional Lake build sandbox (`runLeanSandbox`)
 - Checker trace adapters to TLC-like text and JSON representations
 - Native `.gg` support:
   - `.gg` parsing into typed graph topology (`parseGgProgram`)
@@ -27,7 +29,12 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
   - `eventually@q` and `until@q` quorum operators
 - Advanced composition helpers:
   - complex-amplitude superposition chains
-  - checker topology event bridge for `TopologySampler` sinks
+- Inversion-first boundary learning helpers:
+  - claim/opposite inversion pair generation (`createInversionPair`)
+  - boundary sweep runner with frontier detection (`runBoundarySweep`)
+  - one-shot boundary learning suite report (`runBoundaryLearningSuite`)
+- checker topology event bridge for `TopologySampler` sinks
+  - checker wavefront metrics for warm-up / fill-drain analysis
   - chain-to-stream bridge for Aeon Flow fork/race/fold transports
   - generated superposition-focused `.tla/.cfg` artifact pairs
 
@@ -50,6 +57,9 @@ bun run build
 import {
   ForkRaceFoldModelChecker,
   LogicChainSuperposition,
+  createInversionPair,
+  runBoundaryLearningSuite,
+  runLeanSandbox,
   checkGgProgram,
   parseTlcConfig,
   runTlaSandbox,
@@ -95,9 +105,46 @@ const superposed = LogicChainSuperposition.seed({ score: 0 })
 const winner = superposed.measureArgmax();
 
 const tlaSandboxReport = runTlaSandbox(`${tlaText}\n${cfgText}`);
+const leanSandboxReport = runLeanSandbox({
+  path: './formal/lean',
+  build: false,
+});
 const ggResult = await checkGgProgram(`
   (input)-[:FORK]->(a | b)-[:RACE]->(winner)
 `);
+
+const boundaryReport = await runBoundaryLearningSuite({
+  model: {
+    initialStates: [{ value: 0 }],
+    fingerprint: (state) => `${state.value}`,
+    actions: [
+      {
+        name: 'Inc',
+        enabled: (state) => state.value < 3,
+        successors: (state) => [{ value: state.value + 1 }],
+      },
+    ],
+  },
+  depth: { min: 1, max: 3, step: 1 },
+  pressure: { min: 0, max: 1, step: 1 },
+  suite: {
+    tightenVsWaste: createInversionPair({
+      name: 'tighten-vs-waste',
+      predicate: { name: 'WithinOne', test: (state) => state.value <= 1 },
+      oppositePredicate: { name: 'AtLeastTwo', test: (state) => state.value >= 2 },
+    }),
+    breakVsRepair: createInversionPair({
+      name: 'break-vs-repair',
+      predicate: { name: 'Repair', test: (state) => state.value <= 1 },
+      oppositePredicate: { name: 'Break', test: (state) => state.value === 0 },
+    }),
+    truthMinVsTruthMax: createInversionPair({
+      name: 'truth-min-vs-max',
+      predicate: { name: 'TruthMin', test: (state) => state.value >= 0 },
+      oppositePredicate: { name: 'TruthMax', test: (state) => state.value > 10 },
+    }),
+  },
+});
 ```
 
 ## Directory docs

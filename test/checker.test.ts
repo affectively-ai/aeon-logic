@@ -111,6 +111,49 @@ describe('ForkRaceFoldModelChecker', () => {
     expect(result.stats.foldedTransitions).toBe(1);
   });
 
+  it('reports frontier fill for a diamond-shaped wavefront', async () => {
+    interface DiamondState {
+      readonly step: 0 | 1 | 2 | 3;
+    }
+
+    const checker = new ForkRaceFoldModelChecker<DiamondState>();
+    const model: TemporalModel<DiamondState> = {
+      initialStates: [{ step: 0 }],
+      fingerprint: (state) => `${state.step}`,
+      actions: [
+        {
+          name: 'A',
+          enabled: (state) => state.step === 0,
+          successors: () => [{ step: 1 }],
+        },
+        {
+          name: 'B',
+          enabled: (state) => state.step === 0,
+          successors: () => [{ step: 2 }],
+        },
+        {
+          name: 'C',
+          enabled: (state) => state.step === 1,
+          successors: () => [{ step: 3 }],
+        },
+        {
+          name: 'D',
+          enabled: (state) => state.step === 2,
+          successors: () => [{ step: 3 }],
+        },
+      ],
+    };
+
+    const result = await checker.check(model, { maxDepth: 4 });
+
+    expect(result.ok).toBe(true);
+    expect(result.topology.frontierByLayer).toEqual([1, 2, 1]);
+    expect(result.topology.frontierArea).toBe(4);
+    expect(result.topology.frontierFill).toBeCloseTo(2 / 3, 10);
+    expect(result.topology.wally).toBeCloseTo(1 / 3, 10);
+    expect(result.topology.frontierDeficit).toBeCloseTo(1 / 3, 10);
+  });
+
   it('stays deterministic across concurrency settings', async () => {
     interface DiamondState {
       readonly step: 0 | 1 | 2 | 3;

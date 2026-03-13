@@ -105,6 +105,7 @@ export class ForkRaceFoldModelChecker<State> {
     let forkCount = 0;
     let ventCount = 0;
     let depthLayers = 0;
+    const frontierByLayer: number[] = [];
 
     const initialLayer: string[] = [];
     const dedupedInitialStates: State[] = [];
@@ -162,7 +163,7 @@ export class ForkRaceFoldModelChecker<State> {
           maxFrontier,
           forkCount,
           ventCount,
-          depthLayers,
+          frontierByLayer,
         );
       }
     }
@@ -171,6 +172,7 @@ export class ForkRaceFoldModelChecker<State> {
 
     while (currentLayerIds.length > 0) {
       maxFrontier = Math.max(maxFrontier, currentLayerIds.length);
+      frontierByLayer.push(currentLayerIds.length);
       const nextLayerIds: string[] = [];
 
       for (let chunkStart = 0; chunkStart < currentLayerIds.length; chunkStart += concurrency) {
@@ -291,7 +293,7 @@ export class ForkRaceFoldModelChecker<State> {
                 maxFrontier,
                 forkCount,
                 ventCount,
-                depthLayers,
+                frontierByLayer,
               );
             }
           }
@@ -336,7 +338,7 @@ export class ForkRaceFoldModelChecker<State> {
         forkCount,
         foldedTransitions,
         ventCount,
-        depthLayers,
+        frontierByLayer,
         nodes.size,
         transitionsExplored,
       ),
@@ -390,19 +392,33 @@ export class ForkRaceFoldModelChecker<State> {
     forkCount: number,
     foldedTransitions: number,
     ventCount: number,
-    depthLayers: number,
+    frontierByLayer: readonly number[],
     statesExplored: number,
     transitionsExplored: number,
   ): CheckerTopologyStats {
     // β₁ = edges - nodes + connected components
     // For a connected BFS graph, components = 1
     const beta1 = Math.max(0, transitionsExplored - statesExplored + 1);
+    const frontierArea = frontierByLayer.reduce((sum, width) => sum + width, 0);
+    const peakFrontier = frontierByLayer.reduce(
+      (peak, width) => Math.max(peak, width),
+      0,
+    );
+    const depthLayers = frontierByLayer.length;
+    const envelopeArea = peakFrontier * depthLayers;
+    const frontierFill = envelopeArea === 0 ? 1 : frontierArea / envelopeArea;
+    const wally = 1 - frontierFill;
     return {
       forkCount,
       foldCount: foldedTransitions,
       ventCount,
       beta1,
       depthLayers,
+      frontierByLayer: [...frontierByLayer],
+      frontierArea,
+      frontierFill,
+      wally,
+      frontierDeficit: wally,
     };
   }
 
@@ -415,7 +431,7 @@ export class ForkRaceFoldModelChecker<State> {
     maxFrontier: number,
     forkCount: number,
     ventCount: number,
-    depthLayers: number,
+    frontierByLayer: readonly number[],
   ): CheckerResult<State> {
     return {
       ok: false,
@@ -432,7 +448,7 @@ export class ForkRaceFoldModelChecker<State> {
         forkCount,
         foldedTransitions,
         ventCount,
-        depthLayers,
+        frontierByLayer,
         statesExplored,
         transitionsExplored,
       ),

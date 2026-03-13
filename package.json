@@ -33,6 +33,7 @@
   "author": "Affectively AI",
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^25.3.2",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   }

@@ -128,6 +128,7 @@ export interface Violation<State> {
  * - ventCount: unfair cycles filtered by weak fairness (irreversible removal)
  * - beta1: first Betti number of the exploration graph (independent cycles)
  * - depthLayers: number of BFS layers (path-integral time steps)
+ * - frontierFill: how rectangular the observed wavefront is over time
  */
 export interface CheckerTopologyStats {
   readonly forkCount: number;
@@ -135,6 +136,19 @@ export interface CheckerTopologyStats {
   readonly ventCount: number;
   readonly beta1: number;
   readonly depthLayers: number;
+  /** Frontier width at each BFS layer. */
+  readonly frontierByLayer: readonly number[];
+  /** Sum of frontier widths across all layers. */
+  readonly frontierArea: number;
+  /**
+   * frontierArea / (peak frontier width * depthLayers).
+   * 1.0 means the observed wavefront stayed maximally full for its own shape.
+   */
+  readonly frontierFill: number;
+  /** Wallace frontier deficit scalar, measured in Wallys. */
+  readonly wally: number;
+  /** Compatibility alias for the Wallace frontier deficit scalar. */
+  readonly frontierDeficit: number;
 }
 
 export interface CheckerStats {
