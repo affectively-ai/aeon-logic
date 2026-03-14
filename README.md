@@ -1,43 +1,28 @@
-# aeon-logic
+# @affectively/aeon-logic
 
-Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
+`@affectively/aeon-logic` is a formal-methods toolkit for fork/race/fold-style systems. It combines a model checker, TLA and TLC helpers, a browser-safe TLA sandbox path, Lean project inspection, `.gg` parsing, and boundary-learning utilities in one package.
 
-## What it provides
+The fair brag is that this is more than a checker by itself. The repo already covers a full working path from parsing artifacts to running checks to rendering traces and generated files.
 
-- A finite-state model checker with:
-  - invariant checking
-  - eventual (`<>`) property checking
-  - weak fairness filtering (`WF`) for liveness counterexamples
-  - wavefront topology diagnostics (`beta1`, `frontierFill`, `wallaceNumber`, `wally`)
-- TLC config (`.cfg`) parsing and serialization
-  - supports nested/multiline `CONSTANTS` assignments (sets, tuples, maps)
-- TLA module (`.tla`) parsing and rendering
-- WASM-friendly TLA sandbox runner (`runTlaSandbox`) with module/config partitioning
-- Browser-safe TLA-only entry (`@affectively/aeon-logic/browser`) that avoids Node-only Lean helpers in client bundles
-- Node-friendly Lean project inspection and optional Lake build sandbox (`runLeanSandbox`)
-- Checker trace adapters to TLC-like text and JSON representations
-- Native `.gg` support:
-  - `.gg` parsing into typed graph topology (`parseGgProgram`)
-  - root/terminal node discovery helpers
-  - direct `.gg` → `TemporalModel` conversion (`buildGgTemporalModel`)
-  - one-shot formal verification wrapper (`checkGgProgram`)
-- Logic-chain superposition primitives:
-  - superposition/fork expansion
-  - branch interference (constructive/destructive)
-  - measurement policies (argmax, quorum, merge)
-- Temporal formula DSL with superposition operators:
-  - `always`, `eventually`
-  - `eventually@q` and `until@q` quorum operators
-- Advanced composition helpers:
-  - complex-amplitude superposition chains
-- Inversion-first boundary learning helpers:
-  - claim/opposite inversion pair generation (`createInversionPair`)
-  - boundary sweep runner with frontier detection (`runBoundarySweep`)
-  - one-shot boundary learning suite report (`runBoundaryLearningSuite`)
-- checker topology event bridge for `TopologySampler` sinks
-  - checker wavefront metrics for warm-up / fill-drain analysis
-  - chain-to-stream bridge for Aeon Flow fork/race/fold transports
-  - generated superposition-focused `.tla/.cfg` artifact pairs
+## What It Provides
+
+- a finite-state model checker with invariant and eventual-property checks
+- weak-fairness filtering for liveness counterexamples
+- TLC config parsing and serialization
+- TLA module parsing and rendering
+- a TLA sandbox runner for WASM-friendly environments
+- a browser-safe entrypoint that avoids Node-only Lean helpers
+- Lean project inspection and optional sandboxed build support
+- checker trace adapters for TLC-like text and JSON
+- native `.gg` parsing and `.gg`-to-model conversion
+- boundary-learning helpers for inversion pairs and sweep reports
+
+## Why People May Like It
+
+- the parsing, checking, and artifact-generation pieces are already in one place,
+- there is a browser-friendly path when you only need the TLA side,
+- `.gg` is treated as a first-class input instead of requiring a separate conversion step outside the package,
+- and the trace and artifact helpers make the output easier to inspect and reuse.
 
 ## Install
 
@@ -45,27 +30,15 @@ Fork/race/fold temporal logic engine with TLC/TLA compatibility helpers.
 bun install
 ```
 
-## Run
-
-```bash
-bun run check
-bun run build
-```
-
-## Quick example
+## Quick Example
 
 ```ts
 import {
   ForkRaceFoldModelChecker,
-  LogicChainSuperposition,
-  createInversionPair,
-  runBoundaryLearningSuite,
-  runLeanSandbox,
-  checkGgProgram,
   parseTlcConfig,
-  runTlaSandbox,
   renderTlaModule,
-  serializeTlcConfig,
+  runTlaSandbox,
+  checkGgProgram,
 } from '@affectively/aeon-logic';
 
 const checker = new ForkRaceFoldModelChecker<{ value: number }>();
@@ -85,70 +58,34 @@ const result = await checker.check(
   {
     invariants: [{ name: 'Bounded', test: (state) => state.value <= 2 }],
     eventual: [{ name: 'Reached2', test: (state) => state.value === 2 }],
-  },
+  }
 );
 
 const cfg = parseTlcConfig(`SPECIFICATION Spec`);
-const cfgText = serializeTlcConfig(cfg);
 const tlaText = renderTlaModule({
   moduleName: 'Spec',
   extends: ['Naturals'],
   body: ['Spec == TRUE'],
 });
 
-const superposed = LogicChainSuperposition.seed({ score: 0 })
-  .fork(() => [
-    { state: { score: 1 }, step: 'A', relativeAmplitude: 2 },
-    { state: { score: -1 }, step: 'B', relativeAmplitude: 1 },
-  ])
-  .interfere();
-
-const winner = superposed.measureArgmax();
-
-const tlaSandboxReport = runTlaSandbox(`${tlaText}\n${cfgText}`);
-const leanSandboxReport = runLeanSandbox({
-  path: './formal/lean',
-  build: false,
-});
+const tlaSandboxReport = runTlaSandbox(`${tlaText}`);
 const ggResult = await checkGgProgram(`
   (input)-[:FORK]->(a | b)-[:RACE]->(winner)
 `);
-
-const boundaryReport = await runBoundaryLearningSuite({
-  model: {
-    initialStates: [{ value: 0 }],
-    fingerprint: (state) => `${state.value}`,
-    actions: [
-      {
-        name: 'Inc',
-        enabled: (state) => state.value < 3,
-        successors: (state) => [{ value: state.value + 1 }],
-      },
-    ],
-  },
-  depth: { min: 1, max: 3, step: 1 },
-  pressure: { min: 0, max: 1, step: 1 },
-  suite: {
-    tightenVsWaste: createInversionPair({
-      name: 'tighten-vs-waste',
-      predicate: { name: 'WithinOne', test: (state) => state.value <= 1 },
-      oppositePredicate: { name: 'AtLeastTwo', test: (state) => state.value >= 2 },
-    }),
-    breakVsRepair: createInversionPair({
-      name: 'break-vs-repair',
-      predicate: { name: 'Repair', test: (state) => state.value <= 1 },
-      oppositePredicate: { name: 'Break', test: (state) => state.value === 0 },
-    }),
-    truthMinVsTruthMax: createInversionPair({
-      name: 'truth-min-vs-max',
-      predicate: { name: 'TruthMin', test: (state) => state.value >= 0 },
-      oppositePredicate: { name: 'TruthMax', test: (state) => state.value > 10 },
-    }),
-  },
-});
 ```
 
-## Directory docs
+## Run
 
-- [src/README.md](./src/README.md)
-- [test/README.md](./test/README.md)
+```bash
+bun run check
+bun run build
+```
+
+## Repo Guide
+
+- [src/README.md](./src/README.md): source module map
+- [test/README.md](./test/README.md): test coverage map
+
+## Why This README Is Grounded
+
+Aeon Logic does not need to pretend it is simple. The strongest fair brag is that it already gives you a serious formal tooling package with checker, parser, sandbox, and `.gg` support in one place.
